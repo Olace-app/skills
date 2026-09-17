@@ -133,7 +133,7 @@ olace bridge on --require-key
 olace bridge status --json
 ```
 
-This starts the Olace Bridge, an OpenAI-compatible endpoint at `http://127.0.0.1:5578/v1` for every local and paired model. It listens on loopback only. `--require-key` mints a Bearer key so other local processes cannot use it unasked; `olace bridge key` shows whether one is set, `--regenerate` replaces it. See the `olace-bridge` skill for pointing tools at it.
+This starts the Olace Bridge, an OpenAI-compatible endpoint at `http://127.0.0.1:5578/v1` for every local and paired model. It listens on loopback only. `--require-key` mints a Bearer key so other local processes cannot use it unasked. The key is printed once, on the line after "Bridge API key (shown once, stored in daemon.json):"; capture it from that output, because `olace bridge key` only reports whether one is set (`--regenerate` mints a fresh one). See the `olace-bridge` skill for pointing tools at it.
 
 ## Verify the whole thing
 

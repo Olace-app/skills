@@ -16,7 +16,7 @@ olace bridge on --require-key
 olace bridge status --json
 ```
 
-`state` is `listening` when ready. `--require-key` mints a Bearer key on first use and prints it; `olace bridge key` reports whether one is set, `--regenerate` replaces it, `--no-key` removes the requirement (any process on the machine can then connect). The Bridge listens on loopback only; a different port is `olace bridge on --port <n>`.
+`state` is `listening` when ready. `--require-key` mints a Bearer key on first use and prints it once, on the line after "Bridge API key (shown once, stored in daemon.json):"; capture it there. `olace bridge key` only reports whether one is set; `--regenerate` mints a fresh one, `--no-key` removes the requirement (any process on the machine can then connect). The Bridge listens on loopback only; a different port is `olace bridge on --port <n>`.
 
 ## Pick a model
 
