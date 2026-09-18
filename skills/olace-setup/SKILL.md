@@ -16,7 +16,9 @@ Everything below runs without a terminal on stdin. Two moments need the user: re
 - A GPU is not required, but a model has to fit the machine. `olace setup` picks a starter model sized to the hardware it detects.
 - Tell the user up front: an Olace account is free, local and paired AI never costs credits, and sign-in is a one-time email code with no password.
 
-Docs, in agent-readable form: https://olace.app/docs/llms.txt (index) and https://olace.app/docs-md/<page>.md (any page as raw markdown). This flow is the `agents` page: https://olace.app/docs-md/agents.md
+Docs, in agent-readable form: https://www.olace.app/docs/llms.txt (index) and https://www.olace.app/docs-md/<page>.md (any page as raw markdown). This flow is the `agents` page: https://www.olace.app/docs-md/agents.md
+
+Fetch these on the `www.` host, as written. `olace.app` 308s to it, so a client that does not follow redirects (bare `curl -s` is one, `curl -sL` is not) reads a 15-byte "Redirecting..." body as the page.
 
 ## Step 1: Install
 

@@ -19,7 +19,7 @@ Or copy a `skills/<name>/SKILL.md` into your agent's skills directory by hand.
 
 ## What Olace is
 
-One computer runs the models, through Ollama, LM Studio, or llama.cpp. Every device the user pairs streams from it over an end-to-end encrypted connection, on the LAN directly or through Olace's relay when away, with no port forwarding, no VPN, and no public address. The Olace Bridge serves the same models to any OpenAI-compatible tool on the machine. Local and paired inference is free and never reaches Olace's servers. Docs for agents: https://olace.app/docs/llms.txt
+One computer runs the models, through Ollama, LM Studio, or llama.cpp. Every device the user pairs streams from it over an end-to-end encrypted connection, on the LAN directly or through Olace's relay when away, with no port forwarding, no VPN, and no public address. The Olace Bridge serves the same models to any OpenAI-compatible tool on the machine. Local and paired inference is free and never reaches Olace's servers. Docs for agents: https://www.olace.app/docs/llms.txt (the `www.` host: `olace.app` redirects to it, and a client that does not follow redirects reads the redirect body as the page).
 
 ## Contributing
 

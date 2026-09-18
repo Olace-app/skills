@@ -61,7 +61,7 @@ Set base URL `http://127.0.0.1:5578/v1`, API key to the Bridge key (or any non-e
 | Open WebUI | Admin Settings › Connections › OpenAI |
 | Jan, Chatbox, Cherry Studio | Add provider, type "OpenAI API Compatible" |
 
-Full table with the exact keys: https://olace.app/docs-md/bridge.md
+Full table with the exact keys: https://www.olace.app/docs-md/bridge.md (the `www.` host, as written: `olace.app` 308s to it and a client that does not follow redirects reads the redirect body as the page).
 
 ## Troubleshooting
 
