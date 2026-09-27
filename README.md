@@ -23,4 +23,4 @@ One computer runs the models, through Ollama, LM Studio, or llama.cpp. Every dev
 
 ## Contributing
 
-These files are tested against the shipping `olace` CLI. If a command's output changes, the skill changes in the same release. Issues and pull requests welcome.
+These files are tested against the shipping `olace` CLI, most recently 1.1.12 on Linux, including a container without systemd. If a command's output changes, the skill changes in the same release. Issues and pull requests welcome.

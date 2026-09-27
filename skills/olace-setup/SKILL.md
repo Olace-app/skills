@@ -12,9 +12,10 @@ Everything below runs without a terminal on stdin. Two moments need the user: re
 ## Before you start
 
 - Supported hosts: Linux, macOS, Windows. Any of them may be headless (SSH-only, a server, a rented cloud VM).
-- A local AI runtime: Ollama, LM Studio (or its headless `llmster`), or llama.cpp. Olace uses whichever is installed and can install one, but that step needs a terminal. If none is installed, install one yourself first (for example Ollama's own installer), then continue.
+- A local AI runtime: Ollama, LM Studio (or its headless `llmster`), or llama.cpp. Olace uses whichever is installed and can install one, but that step needs a terminal. If none is installed, install one yourself first (for example Ollama's own installer), then continue. Ollama's Linux installer needs `zstd`, which minimal images lack (`apt-get install -y zstd`). Olace starts Ollama itself when a model needs it, with or without systemd.
 - A GPU is not required, but a model has to fit the machine. `olace setup` picks a starter model sized to the hardware it detects.
 - Tell the user up front: an Olace account is free, local and paired AI never costs credits, and sign-in is a one-time email code with no password.
+- A temporary machine (a cloud sandbox, a CI runner, a VM you will delete) joins the account as a device, and its pairings count against the plan's cap. Before it goes away, remove them with `olace pair remove <pair id> --yes`.
 
 Docs, in agent-readable form: https://www.olace.app/docs/llms.txt (index) and https://www.olace.app/docs-md/<page>.md (any page as raw markdown). This flow is the `agents` page: https://www.olace.app/docs-md/agents.md
 
@@ -38,9 +39,28 @@ irm https://olace.app/install.ps1 | iex
 & "$env:USERPROFILE\.olace\bin\olace.cmd" version
 ```
 
-`OLACE_NONINTERACTIVE=1` makes the installer skip its two questions (PATH edit, handoff into setup) so it never blocks. It still installs the daemon, the `olace` command and the background service. Ask the user whether they want `~/.olace/bin` on their PATH permanently; the installer prints the exact line for their shell when you leave it out.
+`OLACE_NONINTERACTIVE=1` makes the installer skip its two questions (PATH edit, handoff into setup) so it never blocks. It still installs the daemon, the `olace` command and, where the system has a service manager, the background service. Ask the user whether they want `~/.olace/bin` on their PATH permanently; the installer prints the exact line for their shell when you leave it out.
+
+The installer verifies the release signature and refuses to install unsigned. If it says it "could not fetch" the manifest or the signature, retry; a fetch can fail transiently.
 
 Re-running the installer is safe: an existing install is updated in place.
+
+### No systemd (containers)
+
+On Linux without systemd, most containers included, there is no service manager to register with. The installer says so:
+
+```text
+No background service here: systemd is not running (a container?).
+Start Olace with: /root/.olace/bin/olace-daemon run   (under your own supervisor to keep it up)
+```
+
+Start the daemon yourself and leave it running:
+
+```bash
+nohup olace run > ~/olace-run.log 2>&1 &
+```
+
+Everything else works the same. `olace run` restarts itself in place when it has to (sign-out, `olace update`, `olace service restart` from this or a paired computer), so it needs no supervisor for those. It does not outlive the machine's processes: after the container restarts, run it again. `olace service install` refuses here; that is expected.
 
 ## Step 2: Set up local AI
 
@@ -51,7 +71,8 @@ olace setup < /dev/null
 Four steps, each skipped when already done: runtime, starter model, Python sandbox (lets models run code on this machine for data files and charts), sign-in. With no terminal it prints what each step would do instead of asking.
 
 - Exit `0` and "Setup complete": move on.
-- Exit `2` and "Some steps need a terminal to confirm": read which step. A runtime install needs a terminal, so install the runtime yourself and re-run. The model and sandbox steps print their own pointer.
+- Exit `2` and "Some steps need a terminal to confirm": read which step. A runtime install needs a terminal, so install the runtime yourself and re-run. The model step prints `Get it with: olace pull <model>` with the download size; run that. The sandbox step prints `No terminal to confirm. Run: olace setup --sandbox --yes`; run exactly that (about 120 MB to download).
+- The sandbox is offered only where models big enough to use it (above about 7B) can run. On hardware that only runs small models, setup says "Not needed yet" and moves on; that is not an error.
 - A specific model instead of the starter pick: `olace pull qwen3.5:4b` (Ollama tags use `:`; LM Studio ids use `/`; `--provider ollama|lms|llamacpp` overrides). Pulling never prompts.
 
 Sign-in is its own step below, because setup cannot read the email code without a terminal.
@@ -78,8 +99,10 @@ Ask the user for the code from their email. Then:
 ```bash
 echo 575537 >> /tmp/olace-code.txt      # the user's code
 sleep 10 && cat /tmp/olace-signin.log
-pkill -f "tail -f /tmp/olace-code.txt"
+pkill -f '^tail -f /tmp/olace-code\.txt$'
 ```
+
+Keep the `pkill` pattern anchored as written. An unanchored `pkill -f "tail -f /tmp/olace-code.txt"` also matches your own shell, whose command line contains that text, and kills it. Recent `tail` versions exit on their own once sign-in finishes, so the `pkill` is often a no-op.
 
 Expected:
 
@@ -88,10 +111,12 @@ Signed in as USER@EXAMPLE.COM.
 The Olace background service is running.
 ```
 
+Under `olace run` (no systemd), the second line is `Olace is running.` instead.
+
 Notes:
 
-- A wrong code prints "That code is not correct or has expired" and waits again; append the corrected code the same way. A blank line cancels.
-- If the log says "Start the background service later", the service was not installed (it normally is, by the installer). Run `olace service install`.
+- A wrong code prints "That code is not correct or has expired", says how many attempts are left, and waits again; append the corrected code the same way. `r` requests a fresh code; a blank line cancels.
+- If the log says "Start the background service later with 'olace service install' or 'olace run'", no daemon is running. Run `olace service install`, or on a machine without systemd start `olace run` as in Step 1.
 - The signed-in daemon picks the session up on its own within seconds; nothing to restart.
 - On Windows, run `olace signin --email ...` in a terminal the user can type into instead of the stdin relay.
 
@@ -103,21 +128,31 @@ olace whoami --json
 
 ## Step 4: Pair the user's other devices
 
-The host shows a pairing code; the user enters it on the device that should use this computer's models. Run it in the background because it waits until claimed:
+Pairing is done from the device that will use this computer's models. There are three ways; the first two need no code.
+
+**From the phone's own list.** In the Olace app, signed in to the same account, this computer appears among the account's computers once it has signed in. The user picks it there. Nothing to run on the host.
+
+**From another computer on the same account.** On that computer, pair by this computer's name. No terminal needed:
+
+```bash
+olace pair --host <this computer's name>
+```
+
+It prints `Paired with <name>. N models available, including ...`. A name that matches nothing lists the account's computers to choose from. Plain `olace pair` shows the same list as a menu, but only in a terminal.
+
+**By code**, for any device. The host shows a code; the user enters it on the other device. Run it in the background because it waits until claimed:
 
 ```bash
 (olace pair --code --ascii > /tmp/olace-pair.log 2>&1 &)
 sleep 3 && head -1 /tmp/olace-pair.log
 ```
 
-Expected first line: `Pairing code: ABCD-1234`. Tell the user:
+Expected first line: `Pairing code: K7QM-3XPD`. Codes never contain 0, O, 1, I, L or U, so the user can read them back without guessing. Tell the user:
 
 - On a phone: open Olace, sign in with the same account, go to **Settings › Paired devices**, and enter the code (or scan the QR in the log file).
-- On another computer with Olace installed: `olace pair claim ABCD-1234`.
+- On another computer with Olace installed: `olace pair claim K7QM-3XPD`.
 
-The command exits `0` and prints `Paired with <device name>.` when claimed. A code that expires is replaced with a fresh one in the same log; re-read the first `Pairing code:` line after "Code expired". Kill it with `pkill -f "olace pair --code"` only if the user stops.
-
-Same-account computers can also pair without a code: `olace pair` on the consuming machine lists the account's hosts, but that menu needs a terminal.
+The command exits `0` and prints `Paired with <device name>.` when claimed. A code that expires is replaced with a fresh one in the same log; re-read the latest `Pairing code:` line after "Code expired". Kill it with `pkill -f '^[^ ]*olace pair --code'` only if the user stops. Asking for more than about five codes a minute gets "Too many requests"; wait and retry.
 
 Verify:
 
@@ -145,7 +180,18 @@ olace status --json
 
 Read: `account.signed_in`, `daemon.running`, `daemon.tunnel_connected` (the host is reachable from the user's other devices), `runtimes.<name>.alive`, `python.ready`, `pairs.active`, `bridge.listening`. `olace list` shows the models this computer can serve.
 
+`identity.key_source` is `machine_id` when the system has no OS keystore (no gnome-keyring or KWallet), which is normal on servers and containers. `olace status` then says the identity key is "protected only by this machine's id". Tell the user; do not install a keyring unasked.
+
 A first test that exercises the model: `olace chat "say hi in five words"`.
+
+## Updating
+
+```bash
+olace update --check
+olace update
+```
+
+`olace update` verifies and installs the latest release, then restarts the daemon, in place under `olace run` too, and prints `Olace <version> is running.` If it reports that the update was rolled back and the daemon runs under `olace run`, stop `olace run`, run `olace update` again, then start `olace run`.
 
 ## Exit codes
 
@@ -153,7 +199,7 @@ A first test that exercises the model: `olace chat "say hi in five words"`.
 
 ## Do not
 
-- Do not run `olace signout` unless the user asks. It signs out the whole computer, including the Olace desktop app, and clears its pairing and Bridge settings. It needs `--yes` without a terminal.
+- Do not run `olace signout` unless the user asks. It signs out the whole computer, including the Olace desktop app, and clears its pairing and file sharing (local models and the Bridge keep working, with their settings). Signing back in needs a new email code. It needs `--yes` without a terminal.
 - Do not edit `~/.olace/daemon.json` by hand. The daemon and the app own it.
 - Do not paste the sign-in code, the pairing code, or the Bridge key anywhere except the command that consumes it.
 - Do not open firewall ports or set up a VPN for Olace. The host is reachable through outbound connections only.

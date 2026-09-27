@@ -7,7 +7,7 @@ description: Point any OpenAI-compatible tool (Codex CLI, Continue, Cline, Aider
 
 The Olace Bridge is an OpenAI-compatible endpoint served by the Olace daemon at `http://127.0.0.1:5578/v1`. It exposes every model on this computer (Ollama, LM Studio, llama.cpp) and every model on the user's paired computers, reached over an end-to-end encrypted connection. The model id decides where inference runs: `ollama/qwen3.5:4b` runs here, `home-pc/ollama/qwen3.5:14b` runs on the paired host called "Home PC". Olace's servers never see the prompts or responses.
 
-Olace must be installed and, for paired models, signed in and paired. If it is not, follow the `olace-setup` skill first.
+Olace must be installed. Local models need no account; paired models need this computer signed in and paired. If it is not set up, follow the `olace-setup` skill first.
 
 ## Turn it on
 
@@ -24,7 +24,9 @@ olace bridge status --json
 curl -s http://127.0.0.1:5578/v1/models -H "Authorization: Bearer $KEY" | jq -r '.data[].id'
 ```
 
-Ids are provider-qualified, paired hosts carry their pairing label as a prefix, and unambiguous shorthand is accepted. Models on a host that is currently offline are listed too; a request to one fails until the host is back. `olace list all` shows the same table with sizes and capabilities.
+Ids are provider-qualified, and paired hosts carry their pairing label as a prefix. For a local model the provider can be dropped when the name is unambiguous (`qwen3.5:4b` for `ollama/qwen3.5:4b`), and matching ignores case. LM Studio names keep their publisher: `victus/lmstudio/google/gemma-4-e4b`, not `victus/lmstudio/gemma-4-e4b`. An id missing its host or publisher part gets a 404 that says `Did you mean: <id>?`; use that id. Other unknown ids get a plain 404, so re-read `/v1/models`.
+
+A paired host that goes offline keeps its models listed as long as this computer has fetched them since its daemon started; requests to them fail until the host is back. A host that restarts keeps its models listed throughout. `olace list all` shows the same table with sizes and capabilities.
 
 ## Endpoints
 
@@ -35,7 +37,9 @@ Ids are provider-qualified, paired hosts carry their pairing label as a prefix, 
 | `POST /v1/completions` | Legacy text completions. |
 | `POST /v1/embeddings` | Local and paired embedding models. |
 
-No `/v1/responses`, no image generation. Tools that require the Responses API need their chat-completions wire mode (Codex CLI: `wire_api = "chat"`).
+Chat completions accept `tools`, `stop`, `max_tokens`, `response_format` (`json_object` and `json_schema`) and `stream_options.include_usage`, and images for vision models. `n` must be 1. Embeddings need a model that can embed; a chat model returns 400.
+
+No `/v1/responses` yet (404 saying it is planned), no image generation. Tools that require the Responses API need their chat-completions wire mode (Codex CLI: `wire_api = "chat"`).
 
 ## Test
 
@@ -65,8 +69,11 @@ Full table with the exact keys: https://www.olace.app/docs-md/bridge.md (the `ww
 
 ## Troubleshooting
 
-- Connection refused: `olace bridge status --json`; if `daemon_running` is false, `olace service restart`.
+- Connection refused: `olace bridge status --json`; if `daemon_running` is false, start the daemon: `olace service restart`, or `nohup olace run > ~/olace-run.log 2>&1 &` on a machine without systemd (a container).
 - 401: the tool is not sending the Bridge key as a Bearer token, or the key was regenerated.
-- 404 with candidates: the model id was ambiguous; use one of the listed ids.
-- A paired model errors with the host offline: `olace status --device <host>`; the host machine must be on and running its daemon.
-- First request on a model is slow: the runtime is loading it into GPU memory. Later requests are fast until it idles out.
+- 403 `origin_not_allowed`: a browser-based tool from an origin the Bridge does not know. Allow it with `olace bridge cors add <origin>` (the error names the origin). Local pages (`http://localhost:<any port>`) and packaged apps are already allowed.
+- 403 `host_not_allowed`: with no key set, the Bridge only accepts requests addressed to `localhost` or `127.0.0.1`. Point the tool at `http://127.0.0.1:5578/v1`, or set a key with `olace bridge key --require-key`.
+- 404 `Did you mean: <id>?`: use the suggested id, often an LM Studio name missing its publisher.
+- 503 `not_signed_in`: paired models need this computer signed in (`olace signin`). Local models keep working.
+- A paired model errors with the host offline: `olace status --device <host>`; the host machine must be on and running its daemon. A stream that ends with `host_disconnected` lost the host mid-answer, or the pairing was removed.
+- First request on a model is slow: the runtime is loading it into memory. Later requests are fast until it idles out.
